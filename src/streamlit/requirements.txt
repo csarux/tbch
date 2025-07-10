@@ -1,0 +1,5 @@
+# File: requirements.txt
+# Depemdencias necesarias para tbch: aplicación streamlit para trasformación de planes entre True Baams con diferente MLC
+streamlit>=1.35.0
+numpy>=1.26.4
+pydicom>=2.4.4
