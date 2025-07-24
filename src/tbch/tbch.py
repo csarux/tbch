@@ -79,6 +79,7 @@ modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.dcm'
 
 import pydicom
 import numpy as np
+import warnings
 
 def convert_millennium_to_hd_positions(millennium_positions):
     '''
@@ -251,9 +252,13 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
 
     if Leaf0PositionBundary == Leaf0PositionBundary_Millenium:
         # Cambiar el nombre del plan
-        if 'RTPlanLabel' in ds:
+        if 'RTPlanLabel' in ds: 
             ds.RTPlanLabel = 'AdaptT3p'
 
+
+        # Eliminar ReferencedRTPlanSequence si existe
+        if hasattr(ds, 'ReferencedRTPlanSequence'):
+            del ds.ReferencedRTPlanSequence
         # Navegar en la secuencia de haces (Beam Sequence)
         for beam in ds.BeamSequence:
 
@@ -262,33 +267,55 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
             beam.TreatmentMachineName = 'TrueBeam3'
 
             # Encontrar la secuencia del dispositivo de limitación de haz y modificar las "Leaf Position Boundaries"
-            for item in beam.BeamLimitingDeviceSequence:
-                if item.RTBeamLimitingDeviceType == 'MLCX':
-                    new_boundaries = [-110,-105,-100,-95,-90,-85,-80,-75,-70,-65,-60,-55,-50,-45,-40,-37.5,-35,-32.5,-30,-27.5,-25,-22.5,-20,-17.5,-15,-12.5,-10,-7.5,-5,-2.5,0,2.5,5,7.5,10,12.5,15,17.5,20,22.5,25,27.5,30,32.5,35,37.5,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110]
-                    item.LeafPositionBoundaries = new_boundaries
+            # Nuevos límites de posición de las láminas (TB3)
+            new_boundaries = new_boundaries = np.arange(-110., -44.5, 5.).tolist() + np.arange(-40., 38.5, 2.5).tolist() + np.arange(40., 111., 5.).tolist()
+            beam.BeamLimitingDeviceSequence[2].LeafPositionBoundaries = new_boundaries
+            print(f"BeamLimitingDeviceSequence[2].LeafPositionBoundaries: {beam.BeamLimitingDeviceSequence[2].LeafPositionBoundaries}")
 
-            # Encontrar las posiciones de MLC en cada punto de control
-            for control_point in beam.ControlPointSequence:
-                for mlc in control_point.BeamLimitingDevicePositionSequence:
-                    if mlc.RTBeamLimitingDeviceType == 'MLCX':
-                        # Obtener las posiciones actuales del MLC Millennium
-                        millennium_positions = mlc.LeafJawPositions
+            control_point_sequence = beam.ControlPointSequence
+            n_control_points = beam.NumberOfControlPoints
 
-                        # Verificar y comparar las láminas para evitar campos que no entren en el MLC HD
-                        for i in range(10):
-                            if millennium_positions[i] != millennium_positions[i + 60]:
-                                raise ValueError(f"El campo no entra en el TrueBeam 3. Discrepancia encontrada: Lámina {i + 1} no coincide con lámina {i + 61} en el punto de control {control_point.ControlPointIndex} del haz {beam.BeamNumber}")
+            if n_control_points == 2:
+                n_control_points = 1  # campo estático
 
-                        for i in range(51, 60):
-                            if millennium_positions[i] != millennium_positions[i + 60]:
-                                raise ValueError(f"El campo no entra en el TrueBeam 3. Discrepancia encontrada: Lámina {i + 1} no coincide con lámina {i + 61} en el punto de control {control_point.ControlPointIndex} del haz {beam.BeamNumber}")
+            for cp in range(n_control_points):
+                cp_item = control_point_sequence[cp]
 
-                        # Convertir las posiciones de MLC Millennium a MLC HD
-                        hd_positions = convert_millennium_to_hd_positions(millennium_positions)
+                # Eliminar posiciones de la mesa si existen
+                for attr in ['TableTopLateralPosition', 'TableTopLongitudinalPosition', 'TableTopVerticalPosition']:
+                    if hasattr(cp_item, attr):
+                        setattr(cp_item, attr, None)
 
-                        # Asignar las nuevas posiciones de las láminas del MLC
-                        mlc.LeafJawPositions = hd_positions
+                bld_seq = cp_item.BeamLimitingDevicePositionSequence
+                if len(bld_seq) >= 3:
+                    mlc_item = bld_seq[2]
+                    millennium_positions = mlc_item.LeafJawPositions
 
+                    # Verificar si el campo entra en el MLC del TB3
+                    for i in list(range(10)) + list(range(50, 60)):
+
+                        mlc_tb3_error_message = (
+                            f"El campo no entra en el TrueBeam 3.\n"
+                            f"Discrepancia encontrada: lámina {i} no coincide con lámina {i+60} "
+                            f"en el punto de control {cp_item.ControlPointIndex} del haz {beam.BeamNumber}"
+                        )
+
+                        if millennium_positions[i] != millennium_positions[i + 60]:
+                            raise ValueError(mlc_tb3_error_message)
+
+                    # Convertir posiciones de Millennium a HD
+                    hd_positions = convert_millennium_to_hd_positions(millennium_positions)
+
+                    # Asignar y guardar en la estructura DICOM
+                    mlc_item.LeafJawPositions = hd_positions
+                    cp_item.BeamLimitingDevicePositionSequence[2] = mlc_item
+                    control_point_sequence[cp] = cp_item
+
+                else:
+                    warnings.warn(f"No existe MLC en BeamLimitingDevicePositionSequence para el punto de control {cp}")
+
+            # Guardar la secuencia de control actualizada
+            beam.ControlPointSequence = control_point_sequence
 
     elif Leaf0PositionBundary == Leaf0PositionBundary_HD:
         # Cambiar el nombre del plan
@@ -302,33 +329,55 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
             beam.DeviceSerialNumber = '5785'
             beam.TreatmentMachineName = 'TrueBeam2'
 
-            # Encontrar la secuencia del dispositivo de limitación de haz y modificar las "Leaf Position Boundaries"
-            for item in beam.BeamLimitingDeviceSequence:
-                if item.RTBeamLimitingDeviceType == 'MLCX':
-                    new_boundaries = [-200, -190, -180, -170, -160, -150, -140, -130, -120, -110, -100, -95, -90, -85, -80, -75, -70, -65, -60, -55, -50, -45, -40, -35, -30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
-                    item.LeafPositionBoundaries = new_boundaries
+            # Nuevos límites de posición de las láminas
+            new_boundaries = list(range(-200, -99, 10)) + list(range(-95, 96, 5)) + list(range(100, 201, 10))
+            beam.BeamLimitingDeviceSequence[2].LeafPositionBoundaries = new_boundaries
 
-            # Encontrar las posiciones de MLC en cada punto de control
-            for control_point in beam.ControlPointSequence:
-                for mlc in control_point.BeamLimitingDevicePositionSequence:
-                    if mlc.RTBeamLimitingDeviceType == 'MLCX':
-                        # Obtener las posiciones actuales del MLC HD
-                        hd_positions = mlc.LeafJawPositions
+            control_point_sequence = beam.ControlPointSequence
+            n_control_points = beam.NumberOfControlPoints
 
-                        # Convertir las posiciones de MLC HD a MLC Millennium
-                        millennium_positions = convert_hd_to_millennium_positions(hd_positions)
+            if n_control_points == 2:  # campo estático
+                n_control_points = 1
 
-                        # Asignar las nuevas posiciones de las láminas del MLC
-                        mlc.LeafJawPositions = millennium_positions
+            for cp in range(n_control_points):
+                cp_item = control_point_sequence[cp]
 
-                        # Cambiar el tipo de MLC a Millennium (no hace falta)
-                        #mlc.RTBeamLimitingDeviceType = 'MLCM'
+                # Eliminar posiciones de la mesa si existen
+                for attr in ['TableTopLateralPosition', 'TableTopLongitudinalPosition', 'TableTopVerticalPosition']:
+                    if hasattr(cp_item, attr):
+                        setattr(cp_item, attr, None)
+
+                # Verificar existencia del MLC (Item_3)
+                bld_seq = cp_item.BeamLimitingDevicePositionSequence
+                if len(bld_seq) >= 3:
+                    mlc_item = bld_seq[2]
+                    hd_positions = mlc_item.LeafJawPositions
+
+                    # Conversión de posiciones
+                    millennium_positions = convert_hd_to_millennium_positions(hd_positions)
+
+                    # Actualizar con nuevas posiciones
+                    mlc_item.LeafJawPositions = millennium_positions
+                    cp_item.BeamLimitingDevicePositionSequence[2] = mlc_item
+                    control_point_sequence[cp] = cp_item
+
+                else:
+                    warnings.warn(f'No existe MLC en BeamLimitingDevicePositionSequence para el punto de control {cp}')
+
+            # Asignar la secuencia modificada
+            beam.ControlPointSequence = control_point_sequence
 
     else:
         raise ValueError("El archivo DICOM no permite identificar el tipo de MLC.")
         
-    # Modificar los identificadores del archivo DICOM para que ARIA no lo interprete como un plan ya existente
+    # Cambiar estado del plan y limpiar revisión
+    ds.ApprovalStatus = 'UNAPPROVED'
+    for field in ['ReviewDate', 'ReviewTime', 'ReviewerName']:
+        if hasattr(ds, field):
+            setattr(ds, field, '')
 
+    
+    # Modificar los identificadores del archivo DICOM para que ARIA no lo interprete como un plan ya existente
     ds.SOPInstanceUID = pydicom.uid.generate_uid()
     ds.SeriesInstanceUID = pydicom.uid.generate_uid()
     ds.StudyInstanceUID = pydicom.uid.generate_uid()
