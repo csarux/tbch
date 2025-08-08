@@ -15,6 +15,7 @@ Descripción:
 Requisitos:
     - pydicom
     - numpy
+    - warnings
 -------------------------------------------------------------------------------
 Funciones
 ---------
@@ -74,12 +75,46 @@ modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.dcm'
       de gestión como ARIA.
     - El archivo modificado se guarda en el directorio de trabajo actual.
 
+plot_mlc_aperture(beam, cp_index, MLC_type=None, ax=None, alpha=1.0)
+    Dibuja la apertura del colimador multiláminas (MLC) y las mordazas para un punto de control específico de un haz de radioterapia.
+
+    Parameters
+    ----------
+    beam : pydicom.dataset.Dataset
+        Objeto que representa el haz de radioterapia, debe contener la secuencia ControlPointSequence.
+    cp_index : int
+        Índice del punto de control dentro de la secuencia ControlPointSequence.
+    MLC_type : str, optional
+        Tipo de MLC utilizado en el haz. Debe ser 'Millenium' o 'HD'. Determina la geometría y el espaciado de las láminas.
+    ax : matplotlib.axes.Axes, optional
+        Eje de matplotlib sobre el que se dibuja la apertura. Si no se proporciona, se debe crear externamente.
+    alpha : float, optional
+        Transparencia de los polígonos que representan las láminas y mordazas. Valor entre 0 y 1.
+
+    Raises
+    ------
+    ValueError
+        Si el tipo de MLC no es reconocido.
+    AssertionError
+        Si el número de bordes de láminas no corresponde al esperado para el tipo de MLC.
+
+    Notes
+    -----
+    La función dibuja las posiciones de las láminas de ambos bancos (A y B) y las mordazas X e Y como líneas delimitadoras.
+    El eje debe estar preparado para visualizar correctamente la geometría del campo, con límites y aspecto igual.
+
+
 -------------------------------------------------------------------------------
 '''
 
 import pydicom
 import numpy as np
 import warnings
+
+# Definir las constantes que identifican el tipo de MLC
+Leaf0PositionBoundary_Millenium = -200.0
+Leaf0PositionBoundary_HD = -110.0
+
 
 def convert_millennium_to_hd_positions(millennium_positions):
     '''
@@ -231,10 +266,6 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
 
     """
     
-    # Definir las constantes que identifican el tipo de MLC
-    Leaf0PositionBundary_Millenium = -200.0
-    Leaf0PositionBundary_HD = -110.0
-    
     # Archivos de entrada y de salida
     working_path ='./'
     dicom_file_path = working_path + dicom_file_name
@@ -248,9 +279,9 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
         raise ValueError("El archivo DICOM no es un archivo de plan de radioterapia (RTPLAN)")
     
     # Identificar el tipo de MLC mediante el valor del PositionBoundary de la primera lámina del MLC (BeamLimitingDevice[2]) del primer campo
-    Leaf0PositionBundary = float(ds.BeamSequence[0].BeamLimitingDeviceSequence[2].LeafPositionBoundaries[0])
+    Leaf0PositionBoundary = float(ds.BeamSequence[0].BeamLimitingDeviceSequence[2].LeafPositionBoundaries[0])
 
-    if Leaf0PositionBundary == Leaf0PositionBundary_Millenium:
+    if Leaf0PositionBoundary == Leaf0PositionBoundary_Millenium:
         # Cambiar el nombre del plan
         if 'RTPlanLabel' in ds: 
             ds.RTPlanLabel = 'AdaptT3p'
@@ -268,7 +299,7 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
 
             # Encontrar la secuencia del dispositivo de limitación de haz y modificar las "Leaf Position Boundaries"
             # Nuevos límites de posición de las láminas (TB3)
-            new_boundaries = new_boundaries = np.arange(-110., -44.5, 5.).tolist() + np.arange(-40., 38.5, 2.5).tolist() + np.arange(40., 111., 5.).tolist()
+            new_boundaries = np.arange(-110., -44.5, 5.).tolist() + np.arange(-40., 38.5, 2.5).tolist() + np.arange(40., 111., 5.).tolist()
             beam.BeamLimitingDeviceSequence[2].LeafPositionBoundaries = new_boundaries
             print(f"BeamLimitingDeviceSequence[2].LeafPositionBoundaries: {beam.BeamLimitingDeviceSequence[2].LeafPositionBoundaries}")
 
@@ -317,7 +348,7 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
             # Guardar la secuencia de control actualizada
             beam.ControlPointSequence = control_point_sequence
 
-    elif Leaf0PositionBundary == Leaf0PositionBundary_HD:
+    elif Leaf0PositionBoundary == Leaf0PositionBoundary_HD:
         # Cambiar el nombre del plan
         if 'RTPlanLabel' in ds:
             ds.RTPlanLabel = 'AdaptT2p'
@@ -384,4 +415,108 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
 
     # Guardar el archivo DICOM modificado
     ds.save_as(output_file_path)
+
+def plot_mlc_aperture(beam, cp_index, MLC_type=None, ax=None, alpha=1.0):
+    """
+    Dibuja la apertura del colimador multiláminas (MLC) y las mordazas para un punto de control específico de un haz de radioterapia.
+
+    Parameters
+    ----------
+    beam : pydicom.dataset.Dataset
+        Objeto que representa el haz de radioterapia, debe contener la secuencia ControlPointSequence.
+    cp_index : int
+        Índice del punto de control dentro de la secuencia ControlPointSequence.
+    MLC_type : str, optional
+        Tipo de MLC utilizado en el haz. Debe ser 'Millenium' o 'HD'. Determina la geometría y el espaciado de las láminas.
+    ax : matplotlib.axes.Axes, optional
+        Eje de matplotlib sobre el que se dibuja la apertura. Si no se proporciona, se debe crear externamente.
+    alpha : float, optional
+        Transparencia de los polígonos que representan las láminas y mordazas. Valor entre 0 y 1.
+
+    Raises
+    ------
+    ValueError
+        Si el tipo de MLC no es reconocido.
+    AssertionError
+        Si el número de bordes de láminas no corresponde al esperado para el tipo de MLC.
+
+    Notes
+    -----
+    La función dibuja las posiciones de las láminas de ambos bancos (A y B) y las mordazas X e Y como líneas delimitadoras.
+    El eje debe estar preparado para visualizar correctamente la geometría del campo, con límites y aspecto igual.
+    """
+    cps = beam.ControlPointSequence
+
+    # Inicializamos variables
+    x_jaws = y_jaws = None
+    leaf_positions = None
+    # Extraer posiciones del MLC (MLCX) en el punto de control
+    for device in cps[cp_index].BeamLimitingDevicePositionSequence:
+        if device.RTBeamLimitingDeviceType == "MLCX":
+            leaf_positions = device.LeafJawPositions
+        elif device.RTBeamLimitingDeviceType == "ASYMX":
+            x_jaws = device.LeafJawPositions
+        elif device.RTBeamLimitingDeviceType == "ASYMY":
+            y_jaws = device.LeafJawPositions
+
+    if leaf_positions is not None:
+        n_leaves = len(leaf_positions) // 2
+        x1 = np.array(leaf_positions[:n_leaves])  # Banco A
+        x2 = np.array(leaf_positions[n_leaves:])  # Banco B
+
+        # Coordenadas reales de los bordes de las láminas (y-direction)
+        if MLC_type == "Millenium":
+            leaf_edges = list(range(-200, -99, 10)) + list(range(-95, 96, 5)) + list(range(100, 201, 10))
+            leaf_colors = ['skyblue', 'lightgreen']
+        elif MLC_type == "HD":
+            leaf_edges = np.arange(-110., -44.5, 5.).tolist() + np.arange(-40., 38.5, 2.5).tolist() + np.arange(40., 111., 5.).tolist()
+            leaf_colors = ['salmon', 'khaki']    
+        else:
+            raise ValueError("Tipo de MLC no reconocido. Debe ser 'Millenium' o 'HD'.")
+        assert len(leaf_edges) == 61, "Debe haber 61 bordes para 60 láminas por banco"
+        y_bottoms = np.array(leaf_edges[:-1])
+        y_tops = np.array(leaf_edges[1:])
+
+        # Largo físico de las láminas (en X): 185 mm
+        leaf_length = 185
+
+        for i in range(n_leaves):
+            # Banco A (superior en la visualización)
+            ax.fill(
+                [x1[i], x1[i] - leaf_length, x1[i] - leaf_length, x1[i]],
+                [y_bottoms[i], y_bottoms[i], y_tops[i], y_tops[i]],
+                color=leaf_colors[0] if i % 2 == 0 else leaf_colors[1],
+                edgecolor='black',
+                linewidth=0.5,
+                alpha=alpha
+            )
+
+            # Banco B (inferior en la visualización)
+            ax.fill(
+                [x2[i] + leaf_length, x2[i], x2[i], x2[i] + leaf_length],
+                [y_bottoms[i], y_bottoms[i], y_tops[i], y_tops[i]],
+                color=leaf_colors[0] if i % 2 == 0 else leaf_colors[1],
+                edgecolor='black',
+                linewidth=0.5,
+                alpha=alpha * 0.5
+            )
+
+        # Dibujar mordazas X como línea vertical delimitadora
+        if x_jaws is not None:
+            ax.axvline(x_jaws[0], color='red', linestyle='--', alpha=alpha, label='Jaw X')
+            ax.axvline(x_jaws[1], color='red', linestyle='--', alpha=alpha)
+
+        # Dibujar mordazas Y como línea horizontal delimitadora
+        if y_jaws is not None:
+            ax.axhline(y_jaws[0], color='red', linestyle='--', alpha=alpha, label='Jaw Y')
+            ax.axhline(y_jaws[1], color='red', linestyle='--', alpha=alpha)
+
+        ax.axvline(0, color='gray', linestyle='--')
+        ax.set_title(f"Apertura MLC – Campo {beam.BeamNumber}, CP {cp_index}")
+        ax.set_xlabel("Posición X (mm)")
+        ax.set_ylabel("Posición Y (mm)")
+        ax.set_xlim(-250, 250)
+        ax.set_ylim(-210, 210)
+        ax.set_aspect('equal')
+        ax.grid(True)
 

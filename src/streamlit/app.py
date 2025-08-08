@@ -6,7 +6,7 @@ import os
 # Agregar el directorio src al path para importar tbch
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../tbch')))
 
-from tbch import modify_plan
+from tbch import modify_plan, plot_mlc_aperture, Leaf0PositionBoundary_Millenium, Leaf0PositionBoundary_HD
 
 st.set_page_config(page_title="Transformación de planes")
 
@@ -18,11 +18,10 @@ with st.expander("ℹ️ ¿Cómo usar esta aplicación?"):
     st.markdown("""
     1. Exporta desde Eclipse el plan de tratamiento utilizando el filtro **DICOM Export Cambio Acelerador**
     1. Haz clic en **Sube un archivo DICOM RTPlan** y selecciona tu archivo `.dcm`.
-    2. Espera a que la aplicación procese el archivo.
+    2. Espera a que la aplicación procese el archivo. En la solapa `Visualización del MLC` podrás comprobar el resultado de la transformación. Si al procesar el archivo ocurre un error, revisa el mensaje mostrado y asegúrate de que el archivo sea un RTPlan válido.
     3. Descarga el archivo modificado.
     3. Importa el plan en Eclipse utilizando el filtro **DICOM Import Cambio Acelerador**.
     3. Calcula la dosis y ajusta las UM para que la distribución coincida con la original.
-    4. Si al procesar el archivo ocurre un error, revisa el mensaje mostrado y asegúrate de que el archivo sea un RTPlan válido.
     """)
 
 uploaded_file = st.file_uploader(
@@ -32,26 +31,93 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
     # Guardar el archivo subido temporalmente
-    temp_input_path = "temp_rtplan.dcm"
+    temp_input_path = "./temp_rtplan.dcm"
     with open(temp_input_path, "wb") as f:
         f.write(uploaded_file.read())
 
-    # Llamar a la función modify_plan
-    modify_plan(dicom_file_name=temp_input_path)
+tab1, tab2 = st.tabs(["Transformación", "Visualización del MLC"])
 
-    # Verificar que el archivo de salida existe
-    output_file = "modified_rt.plan.dcm"
-    if os.path.exists(output_file):
-        st.success("El archivo modificado ha sido creado.")
-        with open(output_file, "rb") as f:
-            st.download_button(
-                label="Descargar archivo modificado",
-                data=f,
-                file_name="modified_rt.plan.dcm",
-                mime="application/dicom"
-            )
-    else:
-        st.error("No se pudo crear el archivo modificado.")
+with tab1:
+    if uploaded_file is not None:
+        # Llamar a la función modify_plan
+        modify_plan(dicom_file_name=temp_input_path)
 
-    # Limpiar archivo temporal
-    os.remove(temp_input_path)
+        # Verificar que el archivo de salida existe
+        output_file = "modified_rt.plan.dcm"
+        if os.path.exists(output_file):
+            st.success("El nuevo plan DICOM con el MLC adaptado ha sido creado.")
+            with open(output_file, "rb") as f:
+                st.download_button(
+                    label="Descargar archivo modificado",
+                    data=f,
+                    file_name="modified_rt.plan.dcm",
+                    mime="application/dicom"
+                )
+        else:
+            st.error("No se pudo crear el archivo modificado.")
+
+        # Nota: No eliminamos el archivo temporal aquí para que esté disponible en la pestaña de visualización.
+        # La eliminación se realizará al final del script.
+        # os.remove(temp_input_path)
+
+with tab2:
+    import pydicom
+    import matplotlib.pyplot as plt
+
+    fig = None
+    fig, ax = plt.subplots(figsize=(10, 10), dpi=120)
+
+    if uploaded_file is not None:
+        # Leer el archivo DICOM
+        ds = pydicom.dcmread(temp_input_path)
+        # Identificar el tipo de MLC mediante el valor del PositionBoundary de la primera lámina del MLC (BeamLimitingDevice[2]) del primer campo
+        Leaf0PositionBoundary = float(ds.BeamSequence[0].BeamLimitingDeviceSequence[2].LeafPositionBoundaries[0])
+        if Leaf0PositionBoundary == Leaf0PositionBoundary_Millenium:
+            input_MLC_type = "Millenium"
+            output_MLC_type = "HD"
+        elif Leaf0PositionBoundary == Leaf0PositionBoundary_HD:
+            input_MLC_type = "HD"
+            output_MLC_type = "Millenium"
+        else:
+            input_MLC_type = "Desconocido"
+
+        # Obtener la lista de campos
+        beams = ds.BeamSequence
+        # Mostrar los índices desde 1 en el selectbox
+        beam_display_indices = [f"Campo {i+1}" for i in range(len(beams))]
+        beam_index = st.selectbox("Selecciona el campo", range(len(beams)), format_func=lambda i: beam_display_indices[i])
+
+        # Seleccionar el campo y su secuencia de puntos de control
+        beam = beams[beam_index]
+        cps = beam.ControlPointSequence
+        num_cps = len(cps)
+
+        # Slider para seleccionar punto de control, mostrando desde 1
+        cp_index = st.slider("Selecciona el punto de control", 1, num_cps, 1) - 1
+
+        plot_mlc_aperture(beam, cp_index, MLC_type=input_MLC_type, ax=ax, alpha=0.7)
+
+        if output_file is not None:
+            output_ds = pydicom.dcmread(output_file)
+            output_beams = output_ds.BeamSequence
+            output_beam = output_beams[beam_index]
+            plot_mlc_aperture(output_beam, cp_index, MLC_type=output_MLC_type, ax=ax, alpha=0.5)
+        
+        # Mostrar los índices seleccionados al usuario (contando desde 1)
+        st.write(f"Campo seleccionado: {beam_index + 1}")
+        st.write(f"Punto de control seleccionado: {cp_index + 1}")
+
+        if fig is not None:
+            st.pyplot(fig, clear_figure=False)
+
+
+            
+# Al final del script, eliminar el archivo temporal si existe
+import atexit
+def cleanup_temp_file():
+    if os.path.exists("./temp_rtplan.dcm"):
+        try:
+            os.remove("./temp_rtplan.dcm")
+        except Exception:
+            pass
+atexit.register(cleanup_temp_file)
