@@ -1,4 +1,6 @@
+import json
 import streamlit as st
+from pathlib import Path
 
 import sys
 import os
@@ -6,7 +8,7 @@ import os
 # Agregar el directorio src al path para importar tbch
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../tbch')))
 
-from tbch import modify_plan, plot_mlc_aperture, Leaf0PositionBoundary_Millenium, Leaf0PositionBoundary_HD
+from tbch import modify_plan, plot_mlc_aperture, Leaf0PositionBoundary_Millenium, Leaf0PositionBoundary_HD, load_linac_config, save_linac_config
 
 st.set_page_config(page_title="Transformación de planes")
 
@@ -35,7 +37,7 @@ if uploaded_file is not None:
     with open(temp_input_path, "wb") as f:
         f.write(uploaded_file.read())
 
-tab1, tab2 = st.tabs(["Transformación", "Visualización del MLC"])
+tab1, tab2, tab3 = st.tabs(["Transformación", "Visualización del MLC", "Configuración"])
 
 with tab1:
     if uploaded_file is not None:
@@ -110,6 +112,40 @@ with tab2:
         if fig is not None:
             st.pyplot(fig, clear_figure=False)
 
+with tab3:
+    st.subheader("Configuración de Aceleradores")
+
+    config = load_linac_config()
+
+    # Guardaremos las modificaciones en un dict temporal
+    new_config = {}
+
+    for accelerator_type, params in config.items():
+        st.markdown(f"### {accelerator_type}")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            device_serial = st.text_input(
+                f"DeviceSerialNumber ({accelerator_type})",
+                value=params.get("DeviceSerialNumber", ""),
+                key=f"serial_{accelerator_type}"
+            )
+
+        with col2:
+            machine_name = st.text_input(
+                f"TreatmentMachineName ({accelerator_type})",
+                value=params.get("TreatmentMachineName", ""),
+                key=f"machine_{accelerator_type}"
+            )
+
+        new_config[accelerator_type] = {
+            "DeviceSerialNumber": device_serial,
+            "TreatmentMachineName": machine_name
+        }
+
+    if st.button("💾 Guardar configuración"):
+        save_linac_config(new_config)
+        st.success("Archivo de configuración guardado correctamente.")
 
             
 # Al final del script, eliminar el archivo temporal si existe

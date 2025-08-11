@@ -110,6 +110,8 @@ plot_mlc_aperture(beam, cp_index, MLC_type=None, ax=None, alpha=1.0)
 import pydicom
 import numpy as np
 import warnings
+import os
+import json
 
 # Definir las constantes que identifican el tipo de MLC
 Leaf0PositionBoundary_Millenium = -200.0
@@ -238,81 +240,85 @@ def convert_hd_to_millennium_positions(hd_positions):
 
     return millennium_positions.tolist()
 
-def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.dcm'):
-    """
-    modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.dcm')
-        Modifica un archivo DICOM de planificación de radioterapia (RT Plan) 
-        reasignando las posiciones de las láminas del MLC y adaptando los metadatos 
-        del plan según el tipo de acelerador.
-        Parámetros
-        ----------
-        dicom_file_name : str, opcional
-            Nombre del archivo DICOM de entrada (por defecto 'RP.T3.dcm').
-        output_file_name : str, opcional
-            Nombre del archivo DICOM de salida modificado (por defecto 'modified_rt.plan.dcm').
-        Excepciones
-        -----------
-        ValueError
-            Si el archivo no es un RT Plan válido, si no se puede identificar el tipo 
-            de MLC, o si las posiciones de las láminas no son compatibles con el 
-            acelerador de destino.
-        Notas
-        -----
-        - El tipo de MLC se identifica automáticamente y se realiza la conversión 
-        correspondiente.
-        - Se actualizan los identificadores DICOM para evitar conflictos en sistemas 
-        de gestión como ARIA.
-        - El archivo modificado se guarda en el directorio de trabajo actual.
+# Archivo de configuración con parámetros específicos del acelerador
+CONFIG_FILE = "linac_config.json"
 
+def load_linac_config(config_path=CONFIG_FILE):
     """
+    Carga la configuración de aceleradores desde un archivo JSON.
+    El archivo debe tener la estructura:
+    {
+        "Millenium": {
+            "DeviceSerialNumber": "####",
+            "TreatmentMachineName": "LinacName1"
+        },
+        "HD": {
+            "DeviceSerialNumber": "####",
+            "TreatmentMachineName": "LinacName2"
+    }
+    """
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Archivo de configuración no encontrado: {config_path}")
+    with open(config_path, "r", encoding="utf-8") as f:
+        return json.load(f)
     
-    # Archivos de entrada y de salida
-    working_path ='./'
+def save_linac_config(config, config_path=CONFIG_FILE):
+    """
+    Guarda la configuración de aceleradores en un archivo JSON.
+    Parámetros
+    ----------
+    config : dict
+        Diccionario con la configuración de aceleradores.
+    config_path : str, opcional
+        Ruta del archivo donde se guardará la configuración (por defecto 'linac_config.json').
+    """
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=4)
+
+def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.dcm', config_path=CONFIG_FILE):
+    """
+    Modifica un archivo DICOM de planificación de radioterapia (RT Plan)
+    reasignando las posiciones de las láminas del MLC y adaptando los metadatos
+    del plan según el tipo de acelerador, usando parámetros desde un archivo de configuración.
+    """
+    # Cargar configuración de aceleradores
+    config = load_linac_config(config_path)
+
+    working_path = './'
     dicom_file_path = working_path + dicom_file_name
     output_file_path = working_path + output_file_name
-    
-    # Leer el archivo DICOM
+
     ds = pydicom.dcmread(dicom_file_path)
 
-    # Asegurarse de que el archivo es de tipo RT Plan
     if ds.Modality != 'RTPLAN':
         raise ValueError("El archivo DICOM no es un archivo de plan de radioterapia (RTPLAN)")
-    
-    # Identificar el tipo de MLC mediante el valor del PositionBoundary de la primera lámina del MLC (BeamLimitingDevice[2]) del primer campo
+
     Leaf0PositionBoundary = float(ds.BeamSequence[0].BeamLimitingDeviceSequence[2].LeafPositionBoundaries[0])
 
     if Leaf0PositionBoundary == Leaf0PositionBoundary_Millenium:
+        accelerator_type = "HD"
         # Cambiar el nombre del plan
-        if 'RTPlanLabel' in ds: 
-            ds.RTPlanLabel = 'AdaptT3p'
+        if 'RTPlanLabel' in ds:
+            ds.RTPlanLabel = 'AdaptM2HD'
 
-
-        # Eliminar ReferencedRTPlanSequence si existe
         if hasattr(ds, 'ReferencedRTPlanSequence'):
             del ds.ReferencedRTPlanSequence
-        # Navegar en la secuencia de haces (Beam Sequence)
+
         for beam in ds.BeamSequence:
+            # Usar parámetros del archivo de configuración
+            beam.DeviceSerialNumber = config[accelerator_type]["DeviceSerialNumber"]
+            beam.TreatmentMachineName = config[accelerator_type]["TreatmentMachineName"]
 
-            # Cambiar el nombre de la máquina y el número de serie
-            beam.DeviceSerialNumber = '6119'
-            beam.TreatmentMachineName = 'TrueBeam3'
-
-            # Encontrar la secuencia del dispositivo de limitación de haz y modificar las "Leaf Position Boundaries"
-            # Nuevos límites de posición de las láminas (TB3)
             new_boundaries = np.arange(-110., -44.5, 5.).tolist() + np.arange(-40., 38.5, 2.5).tolist() + np.arange(40., 111., 5.).tolist()
             beam.BeamLimitingDeviceSequence[2].LeafPositionBoundaries = new_boundaries
-            print(f"BeamLimitingDeviceSequence[2].LeafPositionBoundaries: {beam.BeamLimitingDeviceSequence[2].LeafPositionBoundaries}")
 
             control_point_sequence = beam.ControlPointSequence
             n_control_points = beam.NumberOfControlPoints
-
             if n_control_points == 2:
-                n_control_points = 1  # campo estático
+                n_control_points = 1
 
             for cp in range(n_control_points):
                 cp_item = control_point_sequence[cp]
-
-                # Eliminar posiciones de la mesa si existen
                 for attr in ['TableTopLateralPosition', 'TableTopLongitudinalPosition', 'TableTopVerticalPosition']:
                     if hasattr(cp_item, attr):
                         setattr(cp_item, attr, None)
@@ -349,16 +355,17 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
             beam.ControlPointSequence = control_point_sequence
 
     elif Leaf0PositionBoundary == Leaf0PositionBoundary_HD:
-        # Cambiar el nombre del plan
+        accelerator_type = "Millenium"
+       # Cambiar el nombre del plan
         if 'RTPlanLabel' in ds:
-            ds.RTPlanLabel = 'AdaptT2p'
+            ds.RTPlanLabel = 'AdaptHD2M'
 
         # Navegar en la secuencia de haces (Beam Sequence)
         for beam in ds.BeamSequence:
 
             # Cambiar el nombre de la máquina y el número de serie
-            beam.DeviceSerialNumber = '5785'
-            beam.TreatmentMachineName = 'TrueBeam2'
+            beam.DeviceSerialNumber = config[accelerator_type]["DeviceSerialNumber"]
+            beam.TreatmentMachineName = config[accelerator_type]["TreatmentMachineName"]
 
             # Nuevos límites de posición de las láminas
             new_boundaries = list(range(-200, -99, 10)) + list(range(-95, 96, 5)) + list(range(100, 201, 10))
@@ -512,7 +519,7 @@ def plot_mlc_aperture(beam, cp_index, MLC_type=None, ax=None, alpha=1.0):
             ax.axhline(y_jaws[1], color='red', linestyle='--', alpha=alpha)
 
         ax.axvline(0, color='gray', linestyle='--')
-        ax.set_title(f"Apertura MLC – Campo {beam.BeamNumber}, CP {cp_index}")
+        ax.set_title(f"Apertura MLC – Campo {beam.BeamNumber}, CP {cp_index+1}")
         ax.set_xlabel("Posición X (mm)")
         ax.set_ylabel("Posición Y (mm)")
         ax.set_xlim(-250, 250)
