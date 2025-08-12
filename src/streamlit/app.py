@@ -1,66 +1,45 @@
-import json
+# Configuración de página debe ser la primera llamada a Streamlit
 import streamlit as st
-from pathlib import Path
+st.set_page_config(
+    page_title="MLC Position Converter",
+    page_icon="🏥",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-import sys
-import os
-
-# Archivo de configuración con parámetros específicos del acelerador
-# Usar ruta absoluta basada en la ubicación del script
-current_dir = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(current_dir, "linac_config.json")
-
-# Agregar el directorio src al path para importar tbch
+import json
 import sys
 import os
 from pathlib import Path
 
-# Manejo robusto de rutas para funcionar tanto localmente como en Streamlit Cloud
+# Configuración de rutas para importar módulos
 current_file = Path(__file__).resolve()
 current_dir = current_file.parent
 
-# Posibles ubicaciones del módulo tbch
-possible_paths = [
-    current_dir.parent / "tbch",  # Estructura local: src/streamlit -> src/tbch
-    current_dir / ".." / "tbch",  # Alternativa local
-    Path("/mount/src/cambio-acelerador/src/tbch"),  # Streamlit Cloud típico
-    Path("/mount/src/CambioAcelerador/src/tbch"),  # Streamlit Cloud alternativo
-    current_dir.parent.parent / "src" / "tbch",  # Desde raíz del proyecto
-    Path.cwd() / "src" / "tbch",  # Directorio de trabajo actual
-]
+# Añadir directorios al path para importaciones
+sys.path.insert(0, str(current_dir))  # Para i18n
+sys.path.insert(0, str(current_dir.parent))  # Para tbch desde src/
 
-# Añadir las rutas posibles al sys.path
-# Primero añadir el directorio actual para i18n
-sys.path.insert(0, str(current_dir))
-
-for path in possible_paths:
-    if path.exists():
-        sys.path.insert(0, str(path))
-        break
-else:
-    # Si no encuentra ninguna ruta, añadir todas las posibles
-    for path in possible_paths:
-        sys.path.insert(0, str(path))
+# Archivo de configuración con parámetros específicos del acelerador
+CONFIG_FILE = current_dir / "linac_config.json"
 
 try:
     from tbch import modify_plan, plot_mlc_aperture, Leaf0PositionBoundary_Millenium, Leaf0PositionBoundary_HD, load_linac_config, save_linac_config, set_i18n
 except ImportError as e:
-    st.error(f"Error importing tbch module: {e}")
-    st.error(f"Current working directory: {os.getcwd()}")
-    st.error(f"Python path: {sys.path}")
-    st.error(f"Checked paths: {[str(p) for p in possible_paths]}")
+    st.error(f"❌ Error importing tbch module: {e}")
+    st.error(f"📁 Current working directory: {os.getcwd()}")
+    st.error(f"🐍 Python path entries:")
+    for i, path in enumerate(sys.path):
+        st.error(f"  {i}: {path}")
     st.stop()
 
 try:
     from i18n import i18n, get_language_selector
 except ImportError as e:
-    st.error(f"Error importing i18n module: {e}")
-    st.error(f"Current directory: {current_dir}")
-    st.error(f"Files in current directory: {list(current_dir.glob('*.py'))}")
+    st.error(f"❌ Error importing i18n module: {e}")
+    st.error(f"📁 Current directory: {current_dir}")
+    st.error(f"📄 Files in current directory: {list(current_dir.glob('*.py'))}")
     st.stop()
-
-# Configurar página PRIMERO (antes que cualquier otro comando de Streamlit)
-st.set_page_config(page_title="Plan Transformation / Transformación de planes")
 
 # Configurar el sistema de traducciones en tbch
 set_i18n(i18n)
