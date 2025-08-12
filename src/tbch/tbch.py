@@ -254,8 +254,50 @@ def load_linac_config(config_path=None):
             "TreatmentMachineName": "LinacName2"
     }
     """
+    if config_path is None:
+        # Usar la ruta del archivo actual como base
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(current_dir, "..", "streamlit", "linac_config.json")
+        config_path = os.path.normpath(config_path)
+    
     if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Archivo de configuración no encontrado: {config_path}")
+        # Intentar rutas alternativas
+        alternative_paths = [
+            os.path.join(os.path.dirname(__file__), "linac_config.json"),
+            os.path.join(os.getcwd(), "linac_config.json"),
+            os.path.join(os.getcwd(), "src", "streamlit", "linac_config.json")
+        ]
+        
+        for alt_path in alternative_paths:
+            if os.path.exists(alt_path):
+                config_path = alt_path
+                break
+        else:
+            # Crear configuración por defecto
+            default_config = {
+                "Millenium": {
+                    "DeviceSerialNumber": "5785",
+                    "TreatmentMachineName": "TrueBeam2"
+                },
+                "HD": {
+                    "DeviceSerialNumber": "6119",
+                    "TreatmentMachineName": "TrueBeam3"
+                }
+            }
+            # Intentar crear el archivo en la primera ruta posible
+            for create_path in [config_path] + alternative_paths:
+                try:
+                    os.makedirs(os.path.dirname(create_path), exist_ok=True)
+                    with open(create_path, "w", encoding="utf-8") as f:
+                        json.dump(default_config, f, indent=4)
+                    config_path = create_path
+                    break
+                except (OSError, PermissionError):
+                    continue
+            else:
+                # Si no se puede crear, usar configuración por defecto
+                return default_config
+    
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
     

@@ -6,7 +6,9 @@ import sys
 import os
 
 # Archivo de configuración con parámetros específicos del acelerador
-CONFiG_FILE = "./linac_config.json"
+# Usar ruta absoluta basada en la ubicación del script
+current_dir = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.path.join(current_dir, "linac_config.json")
 
 # Agregar el directorio src al path para importar tbch
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../tbch')))
@@ -45,7 +47,7 @@ tab1, tab2, tab3 = st.tabs(["Transformación", "Visualización del MLC", "Config
 with tab1:
     if uploaded_file is not None:
         # Llamar a la función modify_plan
-        modify_plan(dicom_file_name=temp_input_path, config_path=CONFiG_FILE)
+        modify_plan(dicom_file_name=temp_input_path, config_path=CONFIG_FILE)
 
         # Verificar que el archivo de salida existe
         output_file = "modified_rt.plan.dcm"
@@ -118,7 +120,7 @@ with tab2:
 with tab3:
     st.subheader("Configuración de Aceleradores")
 
-    config = load_linac_config(config_path=CONFiG_FILE)
+    config = load_linac_config(config_path=CONFIG_FILE)
 
     # Guardaremos las modificaciones en un dict temporal
     new_config = {}
@@ -147,7 +149,7 @@ with tab3:
         }
 
     if st.button("💾 Guardar configuración"):
-        save_linac_config(new_config, config_path=CONFiG_FILE)
+        save_linac_config(new_config, config_path=CONFIG_FILE)
         st.success("Archivo de configuración guardado correctamente.")
 
             
