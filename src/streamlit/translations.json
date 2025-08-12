@@ -1,0 +1,184 @@
+{
+  "page_config": {
+    "title": {
+      "es": "Transformación de planes",
+      "en": "Plan Transformation"
+    }
+  },
+  "main_interface": {
+    "app_title": {
+      "es": "Transformación de planes entre True Beams",
+      "en": "Plan Transformation between True Beams"
+    },
+    "app_subtitle": {
+      "es": "Adaptación del MLC: Millenium <-> HD",
+      "en": "MLC Adaptation: Millenium <-> HD"
+    },
+    "help_expander_title": {
+      "es": "ℹ️ ¿Cómo usar esta aplicación?",
+      "en": "ℹ️ How to use this application?"
+    },
+    "help_instructions": {
+      "es": "1. Exporta desde Eclipse el plan de tratamiento utilizando el filtro **DICOM Export Cambio Acelerador**\n1. Haz clic en **Sube un archivo DICOM RTPlan** y selecciona tu archivo `.dcm`.\n2. Espera a que la aplicación procese el archivo. En la solapa `Visualización del MLC` podrás comprobar el resultado de la transformación. Si al procesar el archivo ocurre un error, revisa el mensaje mostrado y asegúrate de que el archivo sea un RTPlan válido.\n3. Descarga el archivo modificado.\n3. Importa el plan en Eclipse utilizando el filtro **DICOM Import Cambio Acelerador**.\n3. Calcula la dosis y ajusta las UM para que la distribución coincida con la original.",
+      "en": "1. Export from Eclipse the treatment plan using the **DICOM Export Accelerator Change** filter\n1. Click on **Upload a DICOM RTPlan file** and select your `.dcm` file.\n2. Wait for the application to process the file. In the `MLC Visualization` tab you can check the transformation result. If an error occurs while processing the file, review the displayed message and make sure the file is a valid RTPlan.\n3. Download the modified file.\n3. Import the plan into Eclipse using the **DICOM Import Accelerator Change** filter.\n3. Calculate the dose and adjust the MU so that the distribution matches the original."
+    },
+    "file_uploader_label": {
+      "es": "Sube un archivo DICOM RTPlan",
+      "en": "Upload a DICOM RTPlan file"
+    }
+  },
+  "tabs": {
+    "transformation": {
+      "es": "Transformación",
+      "en": "Transformation"
+    },
+    "mlc_visualization": {
+      "es": "Visualización del MLC",
+      "en": "MLC Visualization"
+    },
+    "configuration": {
+      "es": "Configuración",
+      "en": "Configuration"
+    }
+  },
+  "transformation_tab": {
+    "success_message": {
+      "es": "El nuevo plan DICOM con el MLC adaptado ha sido creado.",
+      "en": "The new DICOM plan with the adapted MLC has been created."
+    },
+    "download_button_label": {
+      "es": "Descargar archivo modificado",
+      "en": "Download modified file"
+    },
+    "error_message": {
+      "es": "No se pudo crear el archivo modificado.",
+      "en": "Could not create the modified file."
+    }
+  },
+  "visualization_tab": {
+    "beam_selector_label": {
+      "es": "Selecciona el campo",
+      "en": "Select the beam"
+    },
+    "beam_display_prefix": {
+      "es": "Campo",
+      "en": "Beam"
+    },
+    "control_point_slider_label": {
+      "es": "Selecciona el punto de control",
+      "en": "Select the control point"
+    },
+    "selected_beam_label": {
+      "es": "Campo seleccionado:",
+      "en": "Selected beam:"
+    },
+    "selected_cp_label": {
+      "es": "Punto de control seleccionado:",
+      "en": "Selected control point:"
+    }
+  },
+  "configuration_tab": {
+    "title": {
+      "es": "Configuración de Aceleradores",
+      "en": "Accelerator Configuration"
+    },
+    "device_serial_label": {
+      "es": "DeviceSerialNumber",
+      "en": "DeviceSerialNumber"
+    },
+    "machine_name_label": {
+      "es": "TreatmentMachineName",
+      "en": "TreatmentMachineName"
+    },
+    "save_button": {
+      "es": "💾 Guardar configuración",
+      "en": "💾 Save configuration"
+    },
+    "save_success": {
+      "es": "Archivo de configuración guardado correctamente.",
+      "en": "Configuration file saved successfully."
+    }
+  },
+  "tbch_errors": {
+    "invalid_rtplan": {
+      "es": "El archivo DICOM no es un archivo de plan de radioterapia (RTPLAN)",
+      "en": "The DICOM file is not a radiotherapy plan file (RTPLAN)"
+    },
+    "config_file_not_found": {
+      "es": "Archivo de configuración no encontrado en: {path}. Intentadas también: {alternatives}",
+      "en": "Configuration file not found at: {path}. Also tried: {alternatives}"
+    },
+    "mlc_type_not_identified": {
+      "es": "El archivo DICOM no permite identificar el tipo de MLC.",
+      "en": "The DICOM file does not allow identifying the MLC type."
+    },
+    "field_doesnt_fit_tb3": {
+      "es": "El campo no entra en el TrueBeam 3.\\nDiscrepancia encontrada: lámina {leaf_index} no coincide con lámina {opposite_leaf} en el punto de control {cp_index} del haz {beam_number}",
+      "en": "The field does not fit in TrueBeam 3.\\nDiscrepancy found: leaf {leaf_index} does not match leaf {opposite_leaf} at control point {cp_index} of beam {beam_number}"
+    },
+    "no_mlc_in_bld_sequence": {
+      "es": "No existe MLC en BeamLimitingDevicePositionSequence para el punto de control {cp}",
+      "en": "No MLC exists in BeamLimitingDevicePositionSequence for control point {cp}"
+    },
+    "mlc_type_not_recognized": {
+      "es": "Tipo de MLC no reconocido. Debe ser 'Millenium' o 'HD'.",
+      "en": "MLC type not recognized. Must be 'Millenium' or 'HD'."
+    },
+    "invalid_leaf_edges_count": {
+      "es": "Debe haber 61 bordes para 60 láminas por banco",
+      "en": "There must be 61 edges for 60 leaves per bank"
+    }
+  },
+  "plot_labels": {
+    "aperture_title": {
+      "es": "Apertura MLC – Campo {beam_number}, CP {cp_index}",
+      "en": "MLC Aperture – Beam {beam_number}, CP {cp_index}"
+    },
+    "x_axis_label": {
+      "es": "Posición X (mm)",
+      "en": "X Position (mm)"
+    },
+    "y_axis_label": {
+      "es": "Posición Y (mm)",
+      "en": "Y Position (mm)"
+    },
+    "jaw_x_label": {
+      "es": "Jaw X",
+      "en": "Jaw X"
+    },
+    "jaw_y_label": {
+      "es": "Jaw Y",
+      "en": "Jaw Y"
+    }
+  },
+  "plan_labels": {
+    "adapt_m2hd": {
+      "es": "AdaptM2HD",
+      "en": "AdaptM2HD"
+    },
+    "adapt_hd2m": {
+      "es": "AdaptHD2M",
+      "en": "AdaptHD2M"
+    }
+  },
+  "mlc_types": {
+    "millenium": {
+      "es": "Millenium",
+      "en": "Millenium"
+    },
+    "hd": {
+      "es": "HD",
+      "en": "HD"
+    },
+    "unknown": {
+      "es": "Desconocido",
+      "en": "Unknown"
+    }
+  },
+  "approval_status": {
+    "unapproved": {
+      "es": "UNAPPROVED",
+      "en": "UNAPPROVED"
+    }
+  }
+}

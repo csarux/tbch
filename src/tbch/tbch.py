@@ -117,6 +117,34 @@ import json
 Leaf0PositionBoundary_Millenium = -200.0
 Leaf0PositionBoundary_HD = -110.0
 
+# Variable global para el sistema de traducciones
+_i18n = None
+
+def set_i18n(i18n_instance):
+    """Establece la instancia del sistema de traducciones"""
+    global _i18n
+    _i18n = i18n_instance
+
+def get_error_message(error_key, **kwargs):
+    """Obtiene un mensaje de error traducido"""
+    if _i18n:
+        return _i18n.get_text(f"tbch_errors.{error_key}", **kwargs)
+    else:
+        # Mensajes de fallback en español si no hay sistema de traducciones
+        fallback_messages = {
+            "invalid_rtplan": "El archivo DICOM no es un archivo de plan de radioterapia (RTPLAN)",
+            "mlc_type_not_identified": "El archivo DICOM no permite identificar el tipo de MLC.",
+            "field_doesnt_fit_tb3": "El campo no entra en el TrueBeam 3.\nDiscrepancia encontrada: lámina {leaf_index} no coincide con lámina {opposite_leaf} en el punto de control {cp_index} del haz {beam_number}",
+            "no_mlc_in_bld_sequence": "No existe MLC en BeamLimitingDevicePositionSequence para el punto de control {cp}",
+            "mlc_type_not_recognized": "Tipo de MLC no reconocido. Debe ser 'Millenium' o 'HD'.",
+            "invalid_leaf_edges_count": "Debe haber 61 bordes para 60 láminas por banco"
+        }
+        message = fallback_messages.get(error_key, f"Error: {error_key}")
+        try:
+            return message.format(**kwargs)
+        except (KeyError, ValueError):
+            return message
+
 
 def convert_millennium_to_hd_positions(millennium_positions):
     '''
@@ -330,7 +358,7 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
     ds = pydicom.dcmread(dicom_file_path)
 
     if ds.Modality != 'RTPLAN':
-        raise ValueError("El archivo DICOM no es un archivo de plan de radioterapia (RTPLAN)")
+        raise ValueError(get_error_message("invalid_rtplan"))
 
     Leaf0PositionBoundary = float(ds.BeamSequence[0].BeamLimitingDeviceSequence[2].LeafPositionBoundaries[0])
 
@@ -370,14 +398,14 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
                     # Verificar si el campo entra en el MLC del TB3
                     for i in list(range(10)) + list(range(50, 60)):
 
-                        mlc_tb3_error_message = (
-                            f"El campo no entra en el TrueBeam 3.\n"
-                            f"Discrepancia encontrada: lámina {i} no coincide con lámina {i+60} "
-                            f"en el punto de control {cp_item.ControlPointIndex} del haz {beam.BeamNumber}"
-                        )
-
                         if millennium_positions[i] != millennium_positions[i + 60]:
-                            raise ValueError(mlc_tb3_error_message)
+                            raise ValueError(get_error_message(
+                                "field_doesnt_fit_tb3",
+                                leaf_index=i,
+                                opposite_leaf=i+60,
+                                cp_index=cp_item.ControlPointIndex,
+                                beam_number=beam.BeamNumber
+                            ))
 
                     # Convertir posiciones de Millennium a HD
                     hd_positions = convert_millennium_to_hd_positions(millennium_positions)
@@ -388,7 +416,7 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
                     control_point_sequence[cp] = cp_item
 
                 else:
-                    warnings.warn(f"No existe MLC en BeamLimitingDevicePositionSequence para el punto de control {cp}")
+                    warnings.warn(get_error_message("no_mlc_in_bld_sequence", cp=cp))
 
             # Guardar la secuencia de control actualizada
             beam.ControlPointSequence = control_point_sequence
@@ -439,13 +467,13 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
                     control_point_sequence[cp] = cp_item
 
                 else:
-                    warnings.warn(f'No existe MLC en BeamLimitingDevicePositionSequence para el punto de control {cp}')
+                    warnings.warn(get_error_message("no_mlc_in_bld_sequence", cp=cp))
 
             # Asignar la secuencia modificada
             beam.ControlPointSequence = control_point_sequence
 
     else:
-        raise ValueError("El archivo DICOM no permite identificar el tipo de MLC.")
+        raise ValueError(get_error_message("mlc_type_not_identified"))
         
     # Cambiar estado del plan y limpiar revisión
     ds.ApprovalStatus = 'UNAPPROVED'
@@ -518,8 +546,8 @@ def plot_mlc_aperture(beam, cp_index, MLC_type=None, ax=None, alpha=1.0):
             leaf_edges = np.arange(-110., -44.5, 5.).tolist() + np.arange(-40., 38.5, 2.5).tolist() + np.arange(40., 111., 5.).tolist()
             leaf_colors = ['salmon', 'khaki']    
         else:
-            raise ValueError("Tipo de MLC no reconocido. Debe ser 'Millenium' o 'HD'.")
-        assert len(leaf_edges) == 61, "Debe haber 61 bordes para 60 láminas por banco"
+            raise ValueError(get_error_message("mlc_type_not_recognized"))
+        assert len(leaf_edges) == 61, get_error_message("invalid_leaf_edges_count")
         y_bottoms = np.array(leaf_edges[:-1])
         y_tops = np.array(leaf_edges[1:])
 
