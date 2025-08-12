@@ -10,44 +10,50 @@ def setup_environment():
     """Configura el entorno para que funcione tanto en Cloud como localmente"""
     current_dir = Path(__file__).parent.absolute()
     
-    # Añadir src al Python path
+    # Verificar si existe src en el directorio actual
     src_path = current_dir / "src"
     if src_path.exists():
         sys.path.insert(0, str(src_path))
         sys.path.insert(0, str(src_path / "streamlit"))
         
-        # Cambiar al directorio streamlit para que las rutas relativas funcionen
+        # NO cambiar directorio de trabajo - solo agregar al path
         streamlit_dir = src_path / "streamlit"
-        if streamlit_dir.exists():
-            os.chdir(streamlit_dir)
+        return streamlit_dir.exists()
     
-    return src_path.exists()
+    return False
 
 # Configurar entorno
-if not setup_environment():
-    # Si no encuentra src, mostrar error básico
+env_setup = setup_environment()
+project_root = Path(__file__).parent.absolute()
+
+if not env_setup:
+    # Mostrar información de debug
     import streamlit as st
     st.error("❌ Error: No se puede encontrar la estructura del proyecto")
-    st.error(f"Directorio actual: {Path(__file__).parent}")
+    st.error(f"Directorio del script: {project_root}")
+    st.error(f"Existe src/?: {(project_root / 'src').exists()}")
+    if (project_root / 'src').exists():
+        st.error(f"Contenido de src/: {list((project_root / 'src').iterdir())}")
+        st.error(f"Existe src/streamlit/?: {(project_root / 'src' / 'streamlit').exists()}")
+        if (project_root / 'src' / 'streamlit').exists():
+            st.error(f"Contenido de src/streamlit/: {list((project_root / 'src' / 'streamlit').iterdir())}")
     st.stop()
 
-# Ahora importar y ejecutar la aplicación principal
+# Ahora ejecutar la aplicación principal directamente
 try:
-    # Importar directamente desde la estructura configurada
-    from src.streamlit.app import *
-except ImportError:
-    try:
-        # Fallback: ejecutar el contenido del archivo directamente
-        app_file = Path(__file__).parent / "src" / "streamlit" / "app.py"
-        if app_file.exists():
-            with open(app_file, "r", encoding="utf-8") as f:
-                exec(f.read())
-        else:
-            import streamlit as st
-            st.error("❌ No se puede encontrar app.py")
-            st.error(f"Buscando en: {app_file}")
-    except Exception as e:
+    # Usar siempre la ruta absoluta
+    app_file = project_root / "src" / "streamlit" / "app.py"
+    
+    if app_file.exists():
+        with open(app_file, "r", encoding="utf-8") as f:
+            exec(f.read())
+    else:
         import streamlit as st
-        st.error(f"❌ Error ejecutando la aplicación: {e}")
-        st.error(f"Directorio de trabajo: {os.getcwd()}")
-        st.error(f"Python path: {sys.path[:5]}")  # Solo primeros 5 para no saturar
+        st.error("❌ No se puede encontrar app.py")
+        st.error(f"Buscando en: {app_file}")
+        st.error(f"Directorio actual: {Path.cwd()}")
+except Exception as e:
+    import streamlit as st
+    st.error(f"❌ Error ejecutando la aplicación: {e}")
+    st.error(f"Directorio de trabajo: {os.getcwd()}")
+    st.error(f"Python path: {sys.path[:5]}")  # Solo primeros 5 para no saturar
