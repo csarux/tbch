@@ -1,52 +1,53 @@
-# streamlit_app.py - Punto de entrada robusto para Streamlit Cloud
+# streamlit_app.py - Punto de entrada directo para Streamlit Cloud
+# Este archivo DEBE estar en la raíz del repositorio para que Streamlit Cloud lo detecte
+
 import sys
 import os
 from pathlib import Path
 
-# Configurar rutas para Streamlit Cloud
-current_dir = Path(__file__).parent
-
-# Buscar la estructura del proyecto en diferentes ubicaciones posibles
-project_paths = [
-    current_dir,  # Si está en la raíz
-    current_dir / "src",  # Si src está en la raíz  
-    Path("/mount/src/CambioAcelerador"),  # Cloud mount específico
-    Path("/mount/src/cambio-acelerador"),  # Cloud mount alternativo
-]
-
-src_path = None
-app_path = None
-
-# Buscar la aplicación
-for base_path in project_paths:
-    potential_app = base_path / "src" / "streamlit" / "app.py"
-    if potential_app.exists():
-        src_path = base_path / "src"
-        app_path = potential_app
-        break
-
-if src_path and app_path:
-    # Configurar rutas
-    sys.path.insert(0, str(src_path))
-    sys.path.insert(0, str(app_path.parent))
+# Configurar el entorno ANTES de cualquier importación de Streamlit
+def setup_environment():
+    """Configura el entorno para que funcione tanto en Cloud como localmente"""
+    current_dir = Path(__file__).parent.absolute()
     
-    # Cambiar al directorio de la aplicación
-    os.chdir(app_path.parent)
+    # Añadir src al Python path
+    src_path = current_dir / "src"
+    if src_path.exists():
+        sys.path.insert(0, str(src_path))
+        sys.path.insert(0, str(src_path / "streamlit"))
+        
+        # Cambiar al directorio streamlit para que las rutas relativas funcionen
+        streamlit_dir = src_path / "streamlit"
+        if streamlit_dir.exists():
+            os.chdir(streamlit_dir)
     
-    # Ejecutar la aplicación
+    return src_path.exists()
+
+# Configurar entorno
+if not setup_environment():
+    # Si no encuentra src, mostrar error básico
+    import streamlit as st
+    st.error("❌ Error: No se puede encontrar la estructura del proyecto")
+    st.error(f"Directorio actual: {Path(__file__).parent}")
+    st.stop()
+
+# Ahora importar y ejecutar la aplicación principal
+try:
+    # Importar directamente desde la estructura configurada
+    from src.streamlit.app import *
+except ImportError:
     try:
-        with open(app_path, "r", encoding="utf-8") as f:
-            exec(f.read())
+        # Fallback: ejecutar el contenido del archivo directamente
+        app_file = Path(__file__).parent / "src" / "streamlit" / "app.py"
+        if app_file.exists():
+            with open(app_file, "r", encoding="utf-8") as f:
+                exec(f.read())
+        else:
+            import streamlit as st
+            st.error("❌ No se puede encontrar app.py")
+            st.error(f"Buscando en: {app_file}")
     except Exception as e:
         import streamlit as st
         st.error(f"❌ Error ejecutando la aplicación: {e}")
-        st.error(f"📁 Directorio actual: {Path.cwd()}")
-        st.error(f"📁 App path: {app_path}")
-else:
-    import streamlit as st
-    st.error("❌ No se pudo encontrar la aplicación")
-    st.error(f"📁 Directorio actual: {current_dir}")
-    st.error("🔍 Rutas buscadas:")
-    for path in project_paths:
-        app_check = path / "src" / "streamlit" / "app.py"
-        st.error(f"  - {app_check} (existe: {app_check.exists()})")
+        st.error(f"Directorio de trabajo: {os.getcwd()}")
+        st.error(f"Python path: {sys.path[:5]}")  # Solo primeros 5 para no saturar

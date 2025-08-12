@@ -12,64 +12,27 @@ import sys
 import os
 from pathlib import Path
 
-# Configuración de rutas para importar módulos
+# Configuración simple de rutas
 current_file = Path(__file__).resolve()
 current_dir = current_file.parent
 
-# Manejo robusto de rutas para Streamlit Cloud y local
-possible_src_paths = [
-    current_dir.parent,  # src/ desde src/streamlit/
-    current_dir.parent.parent / "src",  # src/ desde raíz del proyecto
-    Path.cwd() / "src",  # src/ desde directorio de trabajo
-    Path("/mount/src"),  # Streamlit Cloud mount point
-]
-
 # Añadir rutas al path
 sys.path.insert(0, str(current_dir))  # Para i18n
+sys.path.insert(0, str(current_dir.parent))  # Para tbch desde src/
 
-# Buscar y añadir la ruta de src que existe
-for src_path in possible_src_paths:
-    if src_path.exists():
-        sys.path.insert(0, str(src_path))
-        tbch_path = src_path / "tbch"
-        if tbch_path.exists():
-            sys.path.insert(0, str(tbch_path))
-        break
-
-# Archivo de configuración con parámetros específicos del acelerador
+# Archivo de configuración
 CONFIG_FILE = current_dir / "linac_config.json"
 
+# Importar módulos necesarios
 try:
     from tbch import modify_plan, plot_mlc_aperture, Leaf0PositionBoundary_Millenium, Leaf0PositionBoundary_HD, load_linac_config, save_linac_config, set_i18n
 except ImportError as e:
     st.error(f"❌ Error importing tbch module: {e}")
     st.error(f"📁 Current working directory: {os.getcwd()}")
-    st.error(f"� Current file location: {current_file}")
     st.error(f"📁 Current directory: {current_dir}")
-    st.error(f"�🐍 Python path entries:")
-    for i, path in enumerate(sys.path):
+    st.error(f"🐍 Python path (first 10):")
+    for i, path in enumerate(sys.path[:10]):
         st.error(f"  {i}: {path}")
-    
-    # Verificar existencia de rutas
-    st.error("🔍 Checking possible paths:")
-    for i, path in enumerate(possible_src_paths):
-        exists = path.exists()
-        tbch_exists = (path / "tbch").exists() if exists else False
-        st.error(f"  {i}: {path} - Exists: {exists}, tbch/: {tbch_exists}")
-    
-    # Intentar listar contenido del directorio actual
-    try:
-        st.error(f"📂 Contents of current directory ({current_dir}):")
-        for item in current_dir.iterdir():
-            st.error(f"  - {item.name}")
-        
-        if current_dir.parent.exists():
-            st.error(f"📂 Contents of parent directory ({current_dir.parent}):")
-            for item in current_dir.parent.iterdir():
-                st.error(f"  - {item.name}")
-    except Exception as debug_e:
-        st.error(f"Debug error: {debug_e}")
-    
     st.stop()
 
 try:
@@ -132,10 +95,6 @@ with tab1:
         except Exception as e:
             st.error(f"Error: {str(e)}")
 
-        # Nota: No eliminamos el archivo temporal aquí para que esté disponible en la pestaña de visualización.
-        # La eliminación se realizará al final del script.
-        # os.remove(temp_input_path)
-
 with tab2:
     import pydicom
     import matplotlib.pyplot as plt
@@ -147,7 +106,7 @@ with tab2:
         try:
             # Leer el archivo DICOM
             ds = pydicom.dcmread(temp_input_path)
-            # Identificar el tipo de MLC mediante el valor del PositionBoundary de la primera lámina del MLC (BeamLimitingDevice[2]) del primer campo
+            # Identificar el tipo de MLC
             Leaf0PositionBoundary = float(ds.BeamSequence[0].BeamLimitingDeviceSequence[2].LeafPositionBoundaries[0])
             if Leaf0PositionBoundary == Leaf0PositionBoundary_Millenium:
                 input_MLC_type = i18n.t("mlc_types.millenium")
@@ -160,7 +119,6 @@ with tab2:
 
             # Obtener la lista de campos
             beams = ds.BeamSequence
-            # Mostrar los índices desde 1 en el selectbox
             beam_display_indices = [f"{i18n.t('visualization_tab.beam_display_prefix')} {i+1}" for i in range(len(beams))]
             beam_index = st.selectbox(
                 i18n.t("visualization_tab.beam_selector_label"), 
@@ -173,7 +131,7 @@ with tab2:
             cps = beam.ControlPointSequence
             num_cps = len(cps)
 
-            # Slider para seleccionar punto de control, mostrando desde 1
+            # Slider para seleccionar punto de control
             cp_index = st.slider(i18n.t("visualization_tab.control_point_slider_label"), 1, num_cps, 1) - 1
 
             plot_mlc_aperture(beam, cp_index, MLC_type=input_MLC_type, ax=ax, alpha=0.7)
@@ -185,7 +143,7 @@ with tab2:
                 output_beam = output_beams[beam_index]
                 plot_mlc_aperture(output_beam, cp_index, MLC_type=output_MLC_type, ax=ax, alpha=0.5)
             
-            # Mostrar los índices seleccionados al usuario (contando desde 1)
+            # Mostrar los índices seleccionados
             st.write(f"{i18n.t('visualization_tab.selected_beam_label')} {beam_index + 1}")
             st.write(f"{i18n.t('visualization_tab.selected_cp_label')} {cp_index + 1}")
 
@@ -232,8 +190,7 @@ with tab3:
     except Exception as e:
         st.error(f"Error: {str(e)}")
 
-            
-# Al final del script, eliminar el archivo temporal si existe
+# Cleanup al final
 import atexit
 def cleanup_temp_file():
     if os.path.exists("./temp_rtplan.dcm"):
