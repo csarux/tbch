@@ -240,9 +240,6 @@ def convert_hd_to_millennium_positions(hd_positions):
 
     return millennium_positions.tolist()
 
-# Archivo de configuración con parámetros específicos del acelerador
-CONFIG_FILE = "./linac_config.json"
-
 def load_linac_config(config_path=CONFIG_FILE):
     """
     Carga la configuración de aceleradores desde un archivo JSON.

@@ -5,6 +5,10 @@ from pathlib import Path
 import sys
 import os
 
+
+# Archivo de configuración con parámetros específicos del acelerador
+CONFIG_FILE = "./linac_config.json"
+
 # Agregar el directorio src al path para importar tbch
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../tbch')))
 
@@ -115,7 +119,7 @@ with tab2:
 with tab3:
     st.subheader("Configuración de Aceleradores")
 
-    config = load_linac_config()
+    config = load_linac_config(config_path=CONFIG_FILE)
 
     # Guardaremos las modificaciones en un dict temporal
     new_config = {}
