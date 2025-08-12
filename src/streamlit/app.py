@@ -16,9 +16,25 @@ from pathlib import Path
 current_file = Path(__file__).resolve()
 current_dir = current_file.parent
 
-# Añadir directorios al path para importaciones
+# Manejo robusto de rutas para Streamlit Cloud y local
+possible_src_paths = [
+    current_dir.parent,  # src/ desde src/streamlit/
+    current_dir.parent.parent / "src",  # src/ desde raíz del proyecto
+    Path.cwd() / "src",  # src/ desde directorio de trabajo
+    Path("/mount/src"),  # Streamlit Cloud mount point
+]
+
+# Añadir rutas al path
 sys.path.insert(0, str(current_dir))  # Para i18n
-sys.path.insert(0, str(current_dir.parent))  # Para tbch desde src/
+
+# Buscar y añadir la ruta de src que existe
+for src_path in possible_src_paths:
+    if src_path.exists():
+        sys.path.insert(0, str(src_path))
+        tbch_path = src_path / "tbch"
+        if tbch_path.exists():
+            sys.path.insert(0, str(tbch_path))
+        break
 
 # Archivo de configuración con parámetros específicos del acelerador
 CONFIG_FILE = current_dir / "linac_config.json"
@@ -28,9 +44,32 @@ try:
 except ImportError as e:
     st.error(f"❌ Error importing tbch module: {e}")
     st.error(f"📁 Current working directory: {os.getcwd()}")
-    st.error(f"🐍 Python path entries:")
+    st.error(f"� Current file location: {current_file}")
+    st.error(f"📁 Current directory: {current_dir}")
+    st.error(f"�🐍 Python path entries:")
     for i, path in enumerate(sys.path):
         st.error(f"  {i}: {path}")
+    
+    # Verificar existencia de rutas
+    st.error("🔍 Checking possible paths:")
+    for i, path in enumerate(possible_src_paths):
+        exists = path.exists()
+        tbch_exists = (path / "tbch").exists() if exists else False
+        st.error(f"  {i}: {path} - Exists: {exists}, tbch/: {tbch_exists}")
+    
+    # Intentar listar contenido del directorio actual
+    try:
+        st.error(f"📂 Contents of current directory ({current_dir}):")
+        for item in current_dir.iterdir():
+            st.error(f"  - {item.name}")
+        
+        if current_dir.parent.exists():
+            st.error(f"📂 Contents of parent directory ({current_dir.parent}):")
+            for item in current_dir.parent.iterdir():
+                st.error(f"  - {item.name}")
+    except Exception as debug_e:
+        st.error(f"Debug error: {debug_e}")
+    
     st.stop()
 
 try:
