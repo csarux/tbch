@@ -240,7 +240,7 @@ def convert_hd_to_millennium_positions(hd_positions):
 
     return millennium_positions.tolist()
 
-def load_linac_config(config_path=CONFIG_FILE):
+def load_linac_config(config_path=None):
     """
     Carga la configuración de aceleradores desde un archivo JSON.
     El archivo debe tener la estructura:
@@ -259,7 +259,7 @@ def load_linac_config(config_path=CONFIG_FILE):
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
     
-def save_linac_config(config, config_path=CONFIG_FILE):
+def save_linac_config(config, config_path=None):
     """
     Guarda la configuración de aceleradores en un archivo JSON.
     Parámetros
@@ -272,7 +272,7 @@ def save_linac_config(config, config_path=CONFIG_FILE):
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=4)
 
-def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.dcm', config_path=CONFIG_FILE):
+def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.dcm', config_path=None):
     """
     Modifica un archivo DICOM de planificación de radioterapia (RT Plan)
     reasignando las posiciones de las láminas del MLC y adaptando los metadatos
