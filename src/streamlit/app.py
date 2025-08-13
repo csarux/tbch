@@ -5,7 +5,7 @@ import streamlit as st
 try:
     st.set_page_config(
         page_title="MLC Position Converter",
-        page_icon="🏥",
+        page_icon="🔄",
         layout="centered",
         initial_sidebar_state="expanded"
     )
