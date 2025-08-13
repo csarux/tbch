@@ -6,7 +6,7 @@ try:
     st.set_page_config(
         page_title="MLC Position Converter",
         page_icon="🏥",
-        layout="wide",
+        layout="centered",
         initial_sidebar_state="expanded"
     )
 except st.errors.StreamlitAPIException:

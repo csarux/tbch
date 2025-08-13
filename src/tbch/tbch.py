@@ -368,6 +368,7 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
         if 'RTPlanLabel' in ds:
             ds.RTPlanLabel = 'AdaptM2HD'
 
+        # Eliminar ReferencedRTPlanSequence si existe
         if hasattr(ds, 'ReferencedRTPlanSequence'):
             del ds.ReferencedRTPlanSequence
 
@@ -426,6 +427,10 @@ def modify_plan(dicom_file_name='RP.T3.dcm', output_file_name='modified_rt.plan.
        # Cambiar el nombre del plan
         if 'RTPlanLabel' in ds:
             ds.RTPlanLabel = 'AdaptHD2M'
+
+        # Eliminar ReferencedRTPlanSequence si existe
+        if hasattr(ds, 'ReferencedRTPlanSequence'):
+            del ds.ReferencedRTPlanSequence
 
         # Navegar en la secuencia de haces (Beam Sequence)
         for beam in ds.BeamSequence:
