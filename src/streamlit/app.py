@@ -35,7 +35,7 @@ work_dir.mkdir(exist_ok=True)
 
 # Importar módulos necesarios
 try:
-    from tbch import modify_plan, plot_mlc_aperture, Leaf0PositionBoundary_Millenium, Leaf0PositionBoundary_HD, load_linac_config, save_linac_config, set_i18n
+    from tbch import modify_plan, plot_mlc_aperture, plot_mlc_aperture_closed, Leaf0PositionBoundary_Millenium, Leaf0PositionBoundary_HD, load_linac_config, save_linac_config, set_i18n
 except ImportError as e:
     st.error(f"❌ Error importing tbch module: {e}")
     st.error(f"📁 Current working directory: {os.getcwd()}")
@@ -126,7 +126,11 @@ with tab1:
                 st.error(f"Directorio de trabajo: {work_dir}")
                 st.error(f"Archivos en directorio de trabajo: {list(work_dir.glob('*'))}")
         except Exception as e:
-            st.error(f"Error durante la transformación: {str(e)}")
+            error_message = str(e)
+            # Dividir el mensaje en líneas y mostrar cada una
+            for line in error_message.split('\\n'):
+                if line.strip():  # Solo mostrar líneas no vacías
+                    st.error(line.strip())
             import traceback
             st.error(f"Detalles del error: {traceback.format_exc()}")
 
@@ -169,14 +173,50 @@ with tab2:
             # Slider para seleccionar punto de control
             cp_index = st.slider(i18n.t("visualization_tab.control_point_slider_label"), 1, num_cps, 1) - 1
 
+            # Mostrar siempre el MLC original
             plot_mlc_aperture(beam, cp_index, MLC_type=input_MLC_type, ax=ax, alpha=0.7)
 
+            # Intentar mostrar el plan transformado solo si existe y es válido
             output_file = work_dir / "modified_rt.plan.dcm"
+            output_loaded = False
+            transformation_failed = False
+            
             if output_file.exists():
-                output_ds = pydicom.dcmread(str(output_file))
-                output_beams = output_ds.BeamSequence
-                output_beam = output_beams[beam_index]
-                plot_mlc_aperture(output_beam, cp_index, MLC_type=output_MLC_type, ax=ax, alpha=0.5)
+                try:
+                    output_ds = pydicom.dcmread(str(output_file))
+                    
+                    # Verificar que el archivo tiene la estructura esperada
+                    if (hasattr(output_ds, 'BeamSequence') and 
+                        len(output_ds.BeamSequence) > beam_index and
+                        hasattr(output_ds.BeamSequence[beam_index], 'ControlPointSequence') and
+                        len(output_ds.BeamSequence[beam_index].ControlPointSequence) > cp_index):
+                        
+                        output_beams = output_ds.BeamSequence
+                        output_beam = output_beams[beam_index]
+                        plot_mlc_aperture(output_beam, cp_index, MLC_type=output_MLC_type, ax=ax, alpha=0.5)
+                        output_loaded = True
+                        
+                except Exception as e:
+                    # Si hay error al cargar el archivo transformado, solo mostrar el original
+                    transformation_failed = True
+            else:
+                # El archivo no existe, verificar si hay un error de transformación conocido
+                # Mostrar MLC de destino cerrado para visualizar el problema
+                if input_MLC_type == i18n.t("mlc_types.millenium"):
+                    # Crear un beam ficticio con MLC HD cerrado
+                    try:
+                        plot_mlc_aperture_closed(ax, MLC_type=output_MLC_type, alpha=0.3)
+                        transformation_failed = True
+                    except:
+                        pass
+            
+            # Mostrar información sobre qué se está visualizando
+            if output_loaded:
+                st.info(i18n.t("visualization_tab.showing_both_plans"))
+            elif transformation_failed:
+                st.warning(i18n.t("visualization_tab.showing_original_and_closed"))
+            else:
+                st.info(i18n.t("visualization_tab.showing_original_only"))
             
             # Mostrar los índices seleccionados
             st.write(f"{i18n.t('visualization_tab.selected_beam_label')} {beam_index + 1}")

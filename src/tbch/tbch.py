@@ -599,3 +599,62 @@ def plot_mlc_aperture(beam, cp_index, MLC_type=None, ax=None, alpha=1.0):
         ax.set_aspect('equal')
         ax.grid(True)
 
+def plot_mlc_aperture_closed(ax, MLC_type=None, alpha=1.0):
+    """
+    Dibuja el MLC completamente cerrado para mostrar cuando la transformación no es posible.
+    
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Eje de matplotlib sobre el que se dibuja la apertura.
+    MLC_type : str
+        Tipo de MLC. Debe ser 'Millenium' o 'HD'.
+    alpha : float, optional
+        Transparencia de los polígonos que representan las láminas.
+    """
+    if MLC_type == "Millenium":
+        leaf_edges = list(range(-200, -99, 10)) + list(range(-95, 96, 5)) + list(range(100, 201, 10))
+        leaf_colors = ['lightcoral', 'lightpink']  # Colores más suaves para indicar que está cerrado
+    elif MLC_type == "HD":
+        leaf_edges = np.arange(-110., -44.5, 5.).tolist() + np.arange(-40., 38.5, 2.5).tolist() + np.arange(40., 111., 5.).tolist()
+        leaf_colors = ['lightcoral', 'lightpink']  # Colores más suaves para indicar que está cerrado
+    else:
+        raise ValueError(get_error_message("mlc_type_not_recognized"))
+    
+    assert len(leaf_edges) == 61, get_error_message("invalid_leaf_edges_count")
+    y_bottoms = np.array(leaf_edges[:-1])
+    y_tops = np.array(leaf_edges[1:])
+    n_leaves = len(y_bottoms)
+    
+    # Largo físico de las láminas (en X): 185 mm
+    leaf_length = 185
+    
+    # Posiciones cerradas: todas las láminas en posición 0
+    closed_position = 0.0
+    
+    for i in range(n_leaves):
+        # Banco A (todas las láminas en posición cerrada)
+        ax.fill(
+            [closed_position, closed_position - leaf_length, closed_position - leaf_length, closed_position],
+            [y_bottoms[i], y_bottoms[i], y_tops[i], y_tops[i]],
+            color=leaf_colors[0] if i % 2 == 0 else leaf_colors[1],
+            edgecolor='red',
+            linewidth=1.0,
+            alpha=alpha,
+            linestyle='--'
+        )
+        
+        # Banco B (todas las láminas en posición cerrada)
+        ax.fill(
+            [closed_position + leaf_length, closed_position, closed_position, closed_position + leaf_length],
+            [y_bottoms[i], y_bottoms[i], y_tops[i], y_tops[i]],
+            color=leaf_colors[0] if i % 2 == 0 else leaf_colors[1],
+            edgecolor='red',
+            linewidth=1.0,
+            alpha=alpha * 0.5,
+            linestyle='--'
+        )
+    
+    # Línea central de referencia
+    ax.axvline(0, color='gray', linestyle='--')
+

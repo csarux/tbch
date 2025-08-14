@@ -75,6 +75,22 @@
     "selected_cp_label": {
       "es": "Punto de control seleccionado:",
       "en": "Selected control point:"
+    },
+    "output_file_error": {
+      "es": "El archivo transformado no es válido o está corrupto. Solo se muestra el plan original.",
+      "en": "The transformed file is not valid or corrupted. Only showing the original plan."
+    },
+    "showing_both_plans": {
+      "es": "📊 Mostrando plan original (transparente) y plan transformado (sólido)",
+      "en": "📊 Showing original plan (transparent) and transformed plan (solid)"
+    },
+    "showing_original_only": {
+      "es": "📋 Solo se muestra el plan original. Transforme el plan para ver la comparación.",
+      "en": "📋 Only showing the original plan. Transform the plan to see the comparison."
+    },
+    "showing_original_and_closed": {
+      "es": "📋 Solo se muestra la apertura del plan original. El MLC HD se muestra cerrado porque la transformación no es posible.",
+      "en": "📋 Only showing the original plan aperture. The HD MLC is shown closed because transformation is not possible."
     }
   },
   "configuration_tab": {
