@@ -75,6 +75,12 @@ uploaded_file = st.file_uploader(
 temp_input_path = None
 
 if uploaded_file is not None:
+    # Limpiar el estado de errores previos cuando se carga un nuevo archivo
+    if 'current_file_name' not in st.session_state or st.session_state.current_file_name != uploaded_file.name:
+        st.session_state.transformation_error = None
+        st.session_state.transformation_success = False
+        st.session_state.current_file_name = uploaded_file.name
+    
     # Guardar el archivo subido temporalmente en el directorio de trabajo
     temp_input_path = work_dir / "temp_rtplan.dcm"
     with open(temp_input_path, "wb") as f:
@@ -89,6 +95,12 @@ tab1, tab2, tab3 = st.tabs([
 with tab1:
     if uploaded_file is not None and temp_input_path is not None:
         try:
+            # Inicializar variables de estado
+            if 'transformation_error' not in st.session_state:
+                st.session_state.transformation_error = None
+            if 'transformation_success' not in st.session_state:
+                st.session_state.transformation_success = False
+            
             # Llamar a la función modify_plan 
             # La función trabaja con rutas relativas al directorio actual
             # Cambiar temporalmente al directorio de trabajo
@@ -106,6 +118,11 @@ with tab1:
                     output_file_name="modified_rt.plan.dcm",
                     config_path=str(CONFIG_FILE)
                 )
+                
+                # Si llegamos aquí, no hubo error
+                st.session_state.transformation_error = None
+                st.session_state.transformation_success = True
+                
             finally:
                 os.chdir(original_cwd)
 
@@ -126,6 +143,10 @@ with tab1:
                 st.error(f"Directorio de trabajo: {work_dir}")
                 st.error(f"Archivos en directorio de trabajo: {list(work_dir.glob('*'))}")
         except Exception as e:
+            # Guardar el error en el estado de la sesión
+            st.session_state.transformation_error = str(e)
+            st.session_state.transformation_success = False
+            
             error_message = str(e)
             # Dividir el mensaje en líneas y mostrar cada una
             for line in error_message.split('\\n'):
@@ -176,12 +197,23 @@ with tab2:
             # Mostrar siempre el MLC original
             plot_mlc_aperture(beam, cp_index, MLC_type=input_MLC_type, ax=ax, alpha=0.7)
 
+            # Verificar si hay un error de transformación conocido
+            has_transformation_error = (hasattr(st.session_state, 'transformation_error') and 
+                                       st.session_state.transformation_error is not None)
+            
             # Intentar mostrar el plan transformado solo si existe y es válido
             output_file = work_dir / "modified_rt.plan.dcm"
             output_loaded = False
             transformation_failed = False
             
-            if output_file.exists():
+            if has_transformation_error:
+                # Si hay un error de transformación conocido, mostrar siempre el MLC cerrado
+                try:
+                    plot_mlc_aperture_closed(ax, MLC_type=output_MLC_type, alpha=0.3)
+                    transformation_failed = True
+                except Exception:
+                    pass
+            elif output_file.exists():
                 try:
                     output_ds = pydicom.dcmread(str(output_file))
                     
@@ -197,18 +229,19 @@ with tab2:
                         output_loaded = True
                         
                 except Exception as e:
-                    # Si hay error al cargar el archivo transformado, solo mostrar el original
-                    transformation_failed = True
-            else:
-                # El archivo no existe, verificar si hay un error de transformación conocido
-                # Mostrar MLC de destino cerrado para visualizar el problema
-                if input_MLC_type == i18n.t("mlc_types.millenium"):
-                    # Crear un beam ficticio con MLC HD cerrado
+                    # Si hay error al cargar el archivo transformado, mostrar el MLC cerrado
                     try:
                         plot_mlc_aperture_closed(ax, MLC_type=output_MLC_type, alpha=0.3)
                         transformation_failed = True
-                    except:
+                    except Exception:
                         pass
+            else:
+                # El archivo no existe, mostrar MLC de destino cerrado
+                try:
+                    plot_mlc_aperture_closed(ax, MLC_type=output_MLC_type, alpha=0.3)
+                    transformation_failed = True
+                except Exception:
+                    pass
             
             # Mostrar información sobre qué se está visualizando
             if output_loaded:
